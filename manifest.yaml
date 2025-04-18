@@ -1,0 +1,29 @@
+appId: org.fedstack.uaaa_nuxt
+name: UAAA Nuxt SDK
+version: 0
+changelog: []
+description: UAAA Nuxt SDK测试应用
+providedPermissions:
+  - path: /example
+    name: 示例权限
+    description: 测试使用的示例权限
+requestedClaims:
+  - name: realname
+    reason: 获取实名信息
+    required: true
+  - name: email
+    reason: 获取邮箱
+    required: true
+requestedPermissions:
+  - reason: 访问用户授权的信息
+    perm: uaaa/session/claim
+    required: true
+callbackUrls:
+  - http://localhost:7445/auth/callback
+variables: {}
+secrets: {}
+securityLevel: 1
+icon: ''
+openid:
+  allowPublicClient: true
+config: {}
