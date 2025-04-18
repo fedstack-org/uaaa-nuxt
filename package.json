@@ -1,6 +1,6 @@
 {
   "name": "@uaaa/nuxt",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Nuxt module for UAAA",
   "repository": "git+https://github.com/fedstack-org/uaaa-nuxt.git",
   "license": "Apache-2.0",
@@ -37,7 +37,8 @@
   },
   "dependencies": {
     "@nuxt/kit": "^3.16.2",
-    "@vueuse/core": "^13.1.0"
+    "@vueuse/core": "^13.1.0",
+    "defu": "^6.1.4"
   },
   "devDependencies": {
     "@nuxt/devtools": "^2.4.0",
