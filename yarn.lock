@@ -2442,6 +2442,7 @@ __metadata:
     "@types/node": "npm:latest"
     "@vueuse/core": "npm:^13.1.0"
     changelogen: "npm:^0.6.1"
+    defu: "npm:^6.1.4"
     eslint: "npm:^9.24.0"
     eslint-config-prettier: "npm:^10.1.2"
     nuxt: "npm:^3.16.2"
