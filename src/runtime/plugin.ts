@@ -66,6 +66,11 @@ interface ILoginState {
   redirect: string
 }
 
+export interface IStartLoginOptions {
+  permissions?: Array<string | { path: string; optional?: boolean }>
+  additionalParams?: Record<string, string>
+}
+
 export class AuthManager {
   uaaaConfig
   cachedOpenidConfig
@@ -269,28 +274,36 @@ export class AuthManager {
     return this.effectiveToken.value
   }
 
-  async startLogin(redirect: string) {
+  async startLogin(redirect: string, options: IStartLoginOptions = {}) {
+    console.group(`[Auth] Starting login`)
+    const permissions = options.permissions ?? [
+      `uperm://{{server}}/**`,
+      `uperm://{{issuer}}/session/claim`
+    ]
+    const mappedPermissionScopes = permissions.map((p) => {
+      const { path, optional } = typeof p === 'string' ? { path: p } : p
+      const schema = optional ? 'uperm+optional' : 'uperm'
+      const interpolatedPath = path
+        .replaceAll('{{client}}', this.uaaaConfig.clientAppId)
+        .replaceAll('{{server}}', this.uaaaConfig.serverAppId)
+        .replaceAll('{{issuer}}', this.uaaaConfig.issuerAppId)
+      return `${schema}://${interpolatedPath}`
+    })
+    console.log(`[Auth] Mapped permissions: ${mappedPermissionScopes.join(', ')}`)
+
     const { authorization_endpoint } = await this.loadOpenidConfig()
     const url = new URL(authorization_endpoint)
     url.searchParams.set('client_id', this.uaaaConfig.clientAppId)
     url.searchParams.set(
       'scope',
-      [
-        'openid',
-        'profile',
-        'email',
-        `uperm://${this.uaaaConfig.serverAppId}/**`,
-        `uperm://${this.uaaaConfig.issuerAppId}/session/claim`
-        // `uperm://${this.uaaaConfig.issuerAppId}/session/slient_authorize`
-      ]
-        .map(encodeURIComponent)
-        .join(' ')
+      ['openid', 'profile', 'email', ...mappedPermissionScopes].map(encodeURIComponent).join(' ')
     )
     url.searchParams.set('response_type', 'code')
     url.searchParams.set('confidential', '0')
     url.searchParams.set('redirect_uri', new URL('/auth/callback', location.origin).href)
-    // url.searchParams.set('preferType', 'iaaa')
-    // url.searchParams.set('nonInteractive', 'true')
+    for (const [k, v] of Object.entries(options.additionalParams ?? {})) {
+      url.searchParams.set(k, v)
+    }
 
     // Generate and store code verifier, and create code challenge
     const codeVerifier = generateCodeVerifier()
@@ -301,6 +314,8 @@ export class AuthManager {
     url.searchParams.set('code_challenge', codeChallenge)
     url.searchParams.set('code_challenge_method', 'S256')
     url.searchParams.set('state', state)
+    console.log(`[Auth] Redirect URL: ${url.href}`)
+    console.groupEnd()
     this.loginState.value = { codeVerifier, state, redirect }
     return url.href
   }
