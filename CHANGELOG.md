@@ -1,6 +1,23 @@
 # Changelog
 
 
+## v1.3.0
+
+[compare changes](https://github.com/fedstack-org/uaaa-nuxt/compare/v1.2.0...v1.3.0)
+
+### 🚀 Enhancements
+
+- Enhance auth token logic ([8366145](https://github.com/fedstack-org/uaaa-nuxt/commit/8366145))
+- Support login options ([4335018](https://github.com/fedstack-org/uaaa-nuxt/commit/4335018))
+
+### 🏡 Chore
+
+- **release:** V1.2.0 ([6eee9c3](https://github.com/fedstack-org/uaaa-nuxt/commit/6eee9c3))
+
+### ❤️ Contributors
+
+- Thezzisu ([@thezzisu](https://github.com/thezzisu))
+
 ## v1.2.0
 
 [compare changes](https://github.com/fedstack-org/uaaa-nuxt/compare/v1.1.0...v1.2.0)
