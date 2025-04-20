@@ -71,7 +71,10 @@ export class AuthManager {
   cachedOpenidConfig
   refreshingOpenidConfig?: Promise<OpenIdConfig>
 
-  token
+  tokens
+  cachedTokens
+  securityLevel
+  effectiveToken
   userId
   appId
   isLoggedIn
@@ -83,12 +86,19 @@ export class AuthManager {
     const runtimeConfig = useRuntimeConfig()
     this.uaaaConfig = runtimeConfig.public.uaaa
     this.cachedOpenidConfig = useLocalStorage<OpenIdConfig | null>('openid_config', null, options)
-    this.token = useLocalStorage<IClientToken | null>('token', null, options)
-    this.userId = computed(() => this.token.value?.decoded.sub ?? '')
-    this.appId = computed(() => this.token.value?.decoded.client_id ?? '')
-    this.isLoggedIn = computed(() => !!this.token.value)
-    this.refreshTokensDebounced = useDebounceFn(() => this._lockAndRefreshToken(), 1000)
-    this.tokensInit = this._lockAndRefreshToken()
+
+    this.tokens = useLocalStorage<IClientToken[]>('tokens', [], options)
+    this.cachedTokens = useLocalStorage<IClientToken[]>('cached_tokens', [], options)
+    this.securityLevel = useLocalStorage<number>('level', -1, options)
+    this.effectiveToken = computed<IClientToken | null>(
+      () => this.tokens.value[this.securityLevel.value] ?? null
+    )
+    this.appId = computed(() => this.effectiveToken.value?.decoded.client_id ?? '')
+    this.userId = computed(() => this.effectiveToken.value?.decoded.sub ?? '')
+
+    this.isLoggedIn = computed(() => this.securityLevel.value !== -1)
+    this.refreshTokensDebounced = useDebounceFn(() => this._lockAndRefreshTokens(), 1000)
+    this.tokensInit = this._lockAndRefreshTokens()
     this.loginState = useLocalStorage<ILoginState | null>('login_state', null, options)
   }
 
@@ -105,14 +115,18 @@ export class AuthManager {
     return config as OpenIdConfig
   }
 
-  private async _refreshToken(force = false) {
-    const now = Date.now()
-    const token = this.token.value
+  private async _refreshTokenFor(
+    level: number,
+    target = this.appId.value,
+    force = false,
+    now = Date.now()
+  ) {
+    const token = this.tokens.value[level]
     if (!token) return
     const remaining = token.decoded.exp * 1000 - now
     const lifetime = (token.decoded.exp - token.decoded.iat) * 1000
     if (!force && remaining > lifetime / 2) return
-    console.log(`[Auth] Refreshing token`)
+    console.log(`[Auth] Refreshing token level=${level} target=${target}`)
     if (token.refreshToken && !token.expireSoon) {
       try {
         const { token_endpoint } = await this.loadOpenidConfig()
@@ -120,7 +134,7 @@ export class AuthManager {
         data.set('grant_type', 'refresh_token')
         data.set('refresh_token', token.refreshToken)
         data.set('client_id', this.uaaaConfig.clientAppId)
-        data.set('target_app_id', this.uaaaConfig.issuerAppId)
+        data.set('target_app_id', target)
         const resp = await fetch(token_endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -130,57 +144,129 @@ export class AuthManager {
         const { access_token, refresh_token } = await resp.json()
         const oldExp = token.decoded.exp
         const oldIat = token.decoded.iat
-        this.token.value = {
+        this.cachedTokens.value.push(this.tokens.value[level])
+        this.tokens.value[level] = {
           token: access_token,
           refreshToken: refresh_token,
           decoded: AuthManager.parseJwt(access_token)
         }
-        if (now - oldIat * 1000 >= 3_000 && this.token.value.decoded.exp <= oldExp) {
-          this.token.value.expireSoon = true
+        if (now - oldIat * 1000 >= 3_000 && this.tokens.value[level].decoded.exp <= oldExp) {
+          this.tokens.value[level].expireSoon = true
         }
-        console.log(`[Auth] Token refreshed`)
+        console.log(`[Auth] Token level=${level} refreshed to ${target}`)
         return
       } catch (err) {
-        delete this.token.value?.refreshToken
-        console.log(`[Auth] Token failed to refresh: ${err}`)
+        delete this.tokens.value[level].refreshToken
+        console.log(`[Auth] Token level=${level} failed to refresh: ${err}`)
       }
     }
     // Token not refreshed, check if it is expired
     if (remaining < 3 * 1000) {
-      console.log(`[Auth] Token dropped remaining=${remaining}ms`)
-      this.token.value = null
+      console.log(`[Auth] Token level=${level} dropped remaining=${remaining}ms`)
+      // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+      delete this.tokens.value[level]
     }
   }
 
-  private async _lockAndRefreshToken(force = false) {
-    return navigator.locks.request(`tokens`, () => this._refreshToken(force))
+  private async _lockAndRefreshTokenFor(
+    level: number,
+    target?: string,
+    force?: boolean,
+    now?: number
+  ) {
+    return navigator.locks.request(`tokens`, () => this._refreshTokenFor(level, target, force, now))
   }
+
+  private async _refreshTokens() {
+    if (this.securityLevel.value === null) return
+    const now = Date.now()
+    console.group(`[Auth] Refreshing tokens at ${now}`)
+    await Promise.all(
+      Array.from({ length: this.securityLevel.value + 1 }, (_, i) =>
+        this._refreshTokenFor(i, undefined, undefined, now)
+      )
+    )
+    console.log(`[Auth] Calculating Security Level`)
+    const level = this.tokens.value.reduce((acc, token, i) => {
+      if (token && token.decoded.exp * 1000 > now) return i
+      return acc
+    }, -1)
+    console.log(`[Auth] Security Level is ${level}`)
+    this.securityLevel.value = level
+    console.groupEnd()
+  }
+
+  private async _lockAndRefreshTokens() {
+    return navigator.locks.request(`tokens`, () => this._refreshTokens())
+  }
+
+  // private async _downgradeTokenFrom(level: SecurityLevel) {
+  //   console.log(`[API] Downgrading token to level ${level}`)
+  //   try {
+  //     const resp = await this.session.downgrade.$post({ json: { targetLevel: level } })
+  //     await this.checkResponse(resp)
+  //     const {
+  //       token: { token, refreshToken }
+  //     } = await resp.json()
+  //     this.tokens.value[level] = { token, refreshToken, decoded: ApiManager.parseJwt(token) }
+  //   } catch (err) {
+  //     console.log(`[API] Token downgrade failed: ${this._formatError(err)}`)
+  //   }
+  // }
 
   /**
    * Fill token store
    */
   private async _applyToken(token: string, refreshToken?: string) {
     const decoded = AuthManager.parseJwt(token)
-    const { jti } = decoded
+    const { jti, level } = decoded
     console.group(`[Auth] Applying token ${jti}`)
-    this.token.value = { token, refreshToken, decoded }
+    this.tokens.value[level] = { token, refreshToken, decoded }
+    this.securityLevel.value = level
+    // await Promise.all(
+    //   Array.from({ length: level }, (_, i) => this._downgradeTokenFrom(i as SecurityLevel))
+    // )
     console.groupEnd()
   }
 
-  async getAuthToken() {
-    await this.tokensInit
-    if ((this.token.value?.decoded.exp ?? 0) * 1000 - Date.now() < 3000) {
-      await this._lockAndRefreshToken()
-    }
-    this.refreshTokensDebounced()
-    return this.token.value
+  private async _lockAndUpdateCachedTokens() {
+    await navigator.locks.request(`tokens`, async () => {
+      console.log(`[Auth] Updating cached tokens`)
+      const now = Date.now()
+      this.cachedTokens.value = this.cachedTokens.value.filter((token) => {
+        const remaining = token.decoded.exp * 1000 - now
+        if (remaining < 3 * 1000) {
+          console.log(`[Auth] Cached token dropped remaining=${remaining}ms`)
+          return false
+        }
+        return true
+      })
+    })
+    return this.cachedTokens.value
   }
 
-  async getHeaders() {
-    const headers: Record<string, string> = Object.create(null)
-    const token = await this.getAuthToken()
-    if (token) headers.Authorization = `Bearer ${token.token}`
-    return headers
+  async getAuthToken(appId: string = this.appId.value) {
+    await this.tokensInit
+    if ((this.effectiveToken.value?.decoded.exp ?? 0) * 1000 - Date.now() < 3000) {
+      console.log(`[Auth] force refresh current token`)
+      await this._lockAndRefreshTokens()
+    }
+    this.refreshTokensDebounced()
+    if (this.effectiveToken.value?.decoded.aud === appId) {
+      return this.effectiveToken.value
+    }
+    // Find cached token
+    const cachedTokens = await this._lockAndUpdateCachedTokens()
+    const cachedToken = cachedTokens.find(
+      (token) => token.decoded.aud === appId && token.decoded.level === this.securityLevel.value
+    )
+    if (cachedToken) {
+      return cachedToken
+    }
+    // Refresh the current token
+    console.log(`[Auth] force refresh current token to ${appId}`)
+    await this._lockAndRefreshTokenFor(this.securityLevel.value, appId, true)
+    return this.effectiveToken.value
   }
 
   async startLogin(redirect: string) {
@@ -243,7 +329,6 @@ export class AuthManager {
     const { access_token, refresh_token } = await resp.json()
     await activate?.(access_token)
     await this._applyToken(access_token, refresh_token)
-    await this._refreshToken(true)
     return loginState.redirect
   }
 
@@ -251,7 +336,9 @@ export class AuthManager {
     console.log(`[Auth] Will logout`)
     await navigator.locks.request(`tokens`, async () => {
       console.log(`[Auth] Logging out`)
-      this.token.value = null
+      this.tokens.value = []
+      this.cachedTokens.value = []
+      this.securityLevel.value = -1
     })
     window.open('/', '_self')
   }
