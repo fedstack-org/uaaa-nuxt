@@ -7,6 +7,7 @@ type OpenIdConfig = {
   authorization_endpoint: string
   token_endpoint: string
   userinfo_endpoint: string
+  end_session_endpoint: string
   jwks_uri: string
   response_types_supported: string[]
   subject_types_supported: string[]
@@ -78,6 +79,7 @@ export class AuthManager {
 
   tokens
   cachedTokens
+  idToken
   securityLevel
   effectiveToken
   userId
@@ -91,6 +93,7 @@ export class AuthManager {
     const runtimeConfig = useRuntimeConfig()
     this.uaaaConfig = runtimeConfig.public.uaaa
     this.cachedOpenidConfig = useLocalStorage<OpenIdConfig | null>('openid_config', null, options)
+    this.idToken = useLocalStorage<string>('id_token', '')
 
     this.tokens = useLocalStorage<IClientToken[]>('tokens', [], options)
     this.cachedTokens = useLocalStorage<IClientToken[]>('cached_tokens', [], options)
@@ -341,7 +344,8 @@ export class AuthManager {
       body: data
     })
     if (!resp.ok) throw new Error(`Failed to get token: ${resp.status}`)
-    const { access_token, refresh_token } = await resp.json()
+    const { access_token, refresh_token, id_token } = await resp.json()
+    this.idToken.value = id_token
     await activate?.(access_token)
     await this._applyToken(access_token, refresh_token)
     return loginState.redirect
@@ -349,13 +353,24 @@ export class AuthManager {
 
   async logout() {
     console.log(`[Auth] Will logout`)
+    const idToken = this.idToken.value
+    const { end_session_endpoint } = await this.loadOpenidConfig()
     await navigator.locks.request(`tokens`, async () => {
       console.log(`[Auth] Logging out`)
       this.tokens.value = []
       this.cachedTokens.value = []
       this.securityLevel.value = -1
+      this.idToken.value = ''
     })
-    window.open('/', '_self')
+    const form = document.createElement('form')
+    form.method = 'POST'
+    form.action = end_session_endpoint
+    form.target = '_self'
+    form.innerHTML += `<input type="hidden" name="id_token_hint" value="${idToken}"/>`
+    form.innerHTML += `<input type="hidden" name="client_id" value="${this.uaaaConfig.clientAppId}"/>`
+    form.innerHTML += `<input type="hidden" name="post_logout_redirect_uri" value="${location.origin}"/>`
+    document.body.appendChild(form)
+    form.submit()
   }
 
   static parseJwt(token: string) {
