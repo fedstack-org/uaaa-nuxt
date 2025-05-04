@@ -1,6 +1,18 @@
 # Changelog
 
 
+## v1.4.0
+
+[compare changes](https://github.com/fedstack-org/uaaa-nuxt/compare/v1.3.0...v1.4.0)
+
+### 🚀 Enhancements
+
+- Support openid rp logout ([7f1eb48](https://github.com/fedstack-org/uaaa-nuxt/commit/7f1eb48))
+
+### ❤️ Contributors
+
+- Thezzisu ([@thezzisu](https://github.com/thezzisu))
+
 ## v1.3.0
 
 [compare changes](https://github.com/fedstack-org/uaaa-nuxt/compare/v1.2.0...v1.3.0)

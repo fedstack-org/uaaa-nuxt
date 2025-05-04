@@ -1,6 +1,6 @@
 {
   "name": "@uaaa/nuxt",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Nuxt module for UAAA",
   "repository": "git+https://github.com/fedstack-org/uaaa-nuxt.git",
   "license": "Apache-2.0",
