@@ -70,6 +70,11 @@ interface ILoginState {
 export interface IStartLoginOptions {
   permissions?: Array<string | { path: string; optional?: boolean }>
   additionalParams?: Record<string, string>
+  callback?: string
+}
+
+export interface ILogoutOptions {
+  callback?: string
 }
 
 export class AuthManager {
@@ -303,7 +308,8 @@ export class AuthManager {
     )
     url.searchParams.set('response_type', 'code')
     url.searchParams.set('confidential', '0')
-    url.searchParams.set('redirect_uri', new URL('/auth/callback', location.origin).href)
+    const callback = options.callback ?? new URL('/auth/callback', location.origin).href
+    url.searchParams.set('redirect_uri', callback)
     for (const [k, v] of Object.entries(options.additionalParams ?? {})) {
       url.searchParams.set(k, v)
     }
@@ -351,7 +357,7 @@ export class AuthManager {
     return loginState.redirect
   }
 
-  async logout() {
+  async logout(options: ILogoutOptions = {}) {
     console.log(`[Auth] Will logout`)
     const idToken = this.idToken.value
     const { end_session_endpoint } = await this.loadOpenidConfig()
@@ -368,7 +374,8 @@ export class AuthManager {
     form.target = '_self'
     form.innerHTML += `<input type="hidden" name="id_token_hint" value="${idToken}"/>`
     form.innerHTML += `<input type="hidden" name="client_id" value="${this.uaaaConfig.clientAppId}"/>`
-    form.innerHTML += `<input type="hidden" name="post_logout_redirect_uri" value="${location.origin}"/>`
+    const callback = options.callback ?? new URL('/auth/logout', location.origin).href
+    form.innerHTML += `<input type="hidden" name="post_logout_redirect_uri" value="${callback}"/>`
     document.body.appendChild(form)
     form.submit()
   }
