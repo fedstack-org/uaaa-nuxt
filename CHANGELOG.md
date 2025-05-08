@@ -1,6 +1,18 @@
 # Changelog
 
 
+## v1.5.0
+
+[compare changes](https://github.com/fedstack-org/uaaa-nuxt/compare/v1.4.0...v1.5.0)
+
+### 🚀 Enhancements
+
+- Enhanced logout flow ([9f397b0](https://github.com/fedstack-org/uaaa-nuxt/commit/9f397b0))
+
+### ❤️ Contributors
+
+- Thezzisu ([@thezzisu](https://github.com/thezzisu))
+
 ## v1.4.0
 
 [compare changes](https://github.com/fedstack-org/uaaa-nuxt/compare/v1.3.0...v1.4.0)
