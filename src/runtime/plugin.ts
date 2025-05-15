@@ -1,6 +1,9 @@
 import { useDebounceFn, useLocalStorage } from '@vueuse/core'
 import { computed } from 'vue'
+import debug from 'debug'
 import { defineNuxtPlugin, useRuntimeConfig } from '#imports'
+
+const logger = debug('uaaa')
 
 type OpenIdConfig = {
   issuer: string
@@ -134,12 +137,13 @@ export class AuthManager {
     force = false,
     now = Date.now()
   ) {
+    const log = logger.extend(`refreshTokenFor`)
     const token = this.tokens.value[level]
     if (!token) return
     const remaining = token.decoded.exp * 1000 - now
     const lifetime = (token.decoded.exp - token.decoded.iat) * 1000
     if (!force && remaining > lifetime / 2) return
-    console.log(`[Auth] Refreshing token level=${level} target=${target}`)
+    log(`Refreshing token level=${level} target=${target}`)
     if (token.refreshToken && !token.expireSoon) {
       try {
         const { token_endpoint } = await this.loadOpenidConfig()
@@ -166,16 +170,16 @@ export class AuthManager {
         if (now - oldIat * 1000 >= 3_000 && this.tokens.value[level].decoded.exp <= oldExp) {
           this.tokens.value[level].expireSoon = true
         }
-        console.log(`[Auth] Token level=${level} refreshed to ${target}`)
+        log(`Token level=${level} refreshed to ${target}`)
         return
       } catch (err) {
         delete this.tokens.value[level].refreshToken
-        console.log(`[Auth] Token level=${level} failed to refresh: ${err}`)
+        log(`Token level=${level} failed to refresh: ${err}`)
       }
     }
     // Token not refreshed, check if it is expired
     if (remaining < 3 * 1000) {
-      console.log(`[Auth] Token level=${level} dropped remaining=${remaining}ms`)
+      log(`Token level=${level} dropped remaining=${remaining}ms`)
       // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
       delete this.tokens.value[level]
     }
@@ -191,6 +195,7 @@ export class AuthManager {
   }
 
   private async _refreshTokens() {
+    const log = logger.extend(`refreshTokens`)
     if (this.securityLevel.value === null) return
     const now = Date.now()
     console.group(`[Auth] Refreshing tokens at ${now}`)
@@ -199,12 +204,12 @@ export class AuthManager {
         this._refreshTokenFor(i, undefined, undefined, now)
       )
     )
-    console.log(`[Auth] Calculating Security Level`)
+    log(`Calculating Security Level`)
     const level = this.tokens.value.reduce((acc, token, i) => {
       if (token && token.decoded.exp * 1000 > now) return i
       return acc
     }, -1)
-    console.log(`[Auth] Security Level is ${level}`)
+    log(`Security Level is ${level}`)
     this.securityLevel.value = level
     console.groupEnd()
   }
@@ -243,13 +248,14 @@ export class AuthManager {
   }
 
   private async _lockAndUpdateCachedTokens() {
+    const log = logger.extend(`updateCachedTokens`)
     await navigator.locks.request(`tokens`, async () => {
-      console.log(`[Auth] Updating cached tokens`)
+      log(`Updating cached tokens`)
       const now = Date.now()
       this.cachedTokens.value = this.cachedTokens.value.filter((token) => {
         const remaining = token.decoded.exp * 1000 - now
         if (remaining < 3 * 1000) {
-          console.log(`[Auth] Cached token dropped remaining=${remaining}ms`)
+          log(`Cached token dropped remaining=${remaining}ms`)
           return false
         }
         return true
@@ -259,9 +265,10 @@ export class AuthManager {
   }
 
   async getAuthToken(appId: string = this.appId.value) {
+    const log = logger.extend(`getAuthToken`)
     await this.tokensInit
     if ((this.effectiveToken.value?.decoded.exp ?? 0) * 1000 - Date.now() < 3000) {
-      console.log(`[Auth] force refresh current token`)
+      log(`force refresh current token`)
       await this._lockAndRefreshTokens()
     }
     this.refreshTokensDebounced()
@@ -277,12 +284,13 @@ export class AuthManager {
       return cachedToken
     }
     // Refresh the current token
-    console.log(`[Auth] force refresh current token to ${appId}`)
+    log(`force refresh current token to ${appId}`)
     await this._lockAndRefreshTokenFor(this.securityLevel.value, appId, true)
     return this.effectiveToken.value
   }
 
   async startLogin(redirect: string, options: IStartLoginOptions = {}) {
+    const log = logger.extend(`startLogin`)
     console.group(`[Auth] Starting login`)
     const permissions = options.permissions ?? [
       `uperm://{{server}}/**`,
@@ -297,7 +305,7 @@ export class AuthManager {
         .replaceAll('{{issuer}}', this.uaaaConfig.issuerAppId)
       return `${schema}://${interpolatedPath}`
     })
-    console.log(`[Auth] Mapped permissions: ${mappedPermissionScopes.join(', ')}`)
+    log(`Mapped permissions: ${mappedPermissionScopes.join(', ')}`)
 
     const { authorization_endpoint } = await this.loadOpenidConfig()
     const url = new URL(authorization_endpoint)
@@ -323,7 +331,7 @@ export class AuthManager {
     url.searchParams.set('code_challenge', codeChallenge)
     url.searchParams.set('code_challenge_method', 'S256')
     url.searchParams.set('state', state)
-    console.log(`[Auth] Redirect URL: ${url.href}`)
+    log(`Redirect URL: ${url.href}`)
     console.groupEnd()
     this.loginState.value = { codeVerifier, state, redirect }
     return url.href
@@ -358,11 +366,12 @@ export class AuthManager {
   }
 
   async logout(options: ILogoutOptions = {}) {
-    console.log(`[Auth] Will logout`)
+    const log = logger.extend(`logout`)
+    log(`Will logout`)
     const idToken = this.idToken.value
     const { end_session_endpoint } = await this.loadOpenidConfig()
     await navigator.locks.request(`tokens`, async () => {
-      console.log(`[Auth] Logging out`)
+      log(`Logging out`)
       this.tokens.value = []
       this.cachedTokens.value = []
       this.securityLevel.value = -1
