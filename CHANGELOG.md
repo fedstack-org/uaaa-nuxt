@@ -1,6 +1,18 @@
 # Changelog
 
 
+## v1.6.0
+
+[compare changes](https://github.com/fedstack-org/uaaa-nuxt/compare/v1.5.0...v1.6.0)
+
+### 🚀 Enhancements
+
+- Add debug ([b83eef2](https://github.com/fedstack-org/uaaa-nuxt/commit/b83eef2))
+
+### ❤️ Contributors
+
+- Thezzisu ([@thezzisu](https://github.com/thezzisu))
+
 ## v1.5.0
 
 [compare changes](https://github.com/fedstack-org/uaaa-nuxt/compare/v1.4.0...v1.5.0)
