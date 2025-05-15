@@ -198,7 +198,7 @@ export class AuthManager {
     const log = logger.extend(`refreshTokens`)
     if (this.securityLevel.value === null) return
     const now = Date.now()
-    console.group(`[Auth] Refreshing tokens at ${now}`)
+    log(`[Auth] Refreshing tokens at ${now}`)
     await Promise.all(
       Array.from({ length: this.securityLevel.value + 1 }, (_, i) =>
         this._refreshTokenFor(i, undefined, undefined, now)
@@ -211,7 +211,6 @@ export class AuthManager {
     }, -1)
     log(`Security Level is ${level}`)
     this.securityLevel.value = level
-    console.groupEnd()
   }
 
   private async _lockAndRefreshTokens() {
@@ -236,15 +235,15 @@ export class AuthManager {
    * Fill token store
    */
   private async _applyToken(token: string, refreshToken?: string) {
+    const log = logger.extend(`applyToken`)
     const decoded = AuthManager.parseJwt(token)
     const { jti, level } = decoded
-    console.group(`[Auth] Applying token ${jti}`)
+    log(`[Auth] Applying token ${jti}`)
     this.tokens.value[level] = { token, refreshToken, decoded }
     this.securityLevel.value = level
     // await Promise.all(
     //   Array.from({ length: level }, (_, i) => this._downgradeTokenFrom(i as SecurityLevel))
     // )
-    console.groupEnd()
   }
 
   private async _lockAndUpdateCachedTokens() {
@@ -291,7 +290,7 @@ export class AuthManager {
 
   async startLogin(redirect: string, options: IStartLoginOptions = {}) {
     const log = logger.extend(`startLogin`)
-    console.group(`[Auth] Starting login`)
+    log(`[Auth] Starting login`)
     const permissions = options.permissions ?? [
       `uperm://{{server}}/**`,
       `uperm://{{issuer}}/session/claim`
@@ -332,7 +331,6 @@ export class AuthManager {
     url.searchParams.set('code_challenge_method', 'S256')
     url.searchParams.set('state', state)
     log(`Redirect URL: ${url.href}`)
-    console.groupEnd()
     this.loginState.value = { codeVerifier, state, redirect }
     return url.href
   }
