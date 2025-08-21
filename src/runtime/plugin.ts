@@ -77,6 +77,7 @@ export interface IStartLoginOptions {
 }
 
 export interface ILogoutOptions {
+  additionalParams?: Record<string, string>
   callback?: string
 }
 
@@ -383,6 +384,11 @@ export class AuthManager {
     form.innerHTML += `<input type="hidden" name="client_id" value="${this.uaaaConfig.clientAppId}"/>`
     const callback = options.callback ?? new URL('/auth/logout', location.origin).href
     form.innerHTML += `<input type="hidden" name="post_logout_redirect_uri" value="${callback}"/>`
+    for (const [k, v] of Object.entries(options.additionalParams ?? {})) {
+      const escapedKey = k.replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      const escapedValue = v.replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      form.innerHTML += `<input type="hidden" name="${escapedKey}" value="${escapedValue}"/>`
+    }
     document.body.appendChild(form)
     form.submit()
   }
