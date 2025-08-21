@@ -1,6 +1,18 @@
 # Changelog
 
 
+## v1.7.0
+
+[compare changes](https://github.com/fedstack-org/uaaa-nuxt/compare/v1.6.1...v1.7.0)
+
+### 🚀 Enhancements
+
+- Upgrade to nuxt 4 ([2320020](https://github.com/fedstack-org/uaaa-nuxt/commit/2320020))
+
+### ❤️ Contributors
+
+- Thezzisu <thezzisu@gmail.com>
+
 ## v1.6.1
 
 [compare changes](https://github.com/fedstack-org/uaaa-nuxt/compare/v1.6.0...v1.6.1)
