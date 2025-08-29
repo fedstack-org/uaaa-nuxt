@@ -68,6 +68,7 @@ interface ILoginState {
   codeVerifier: string
   state: string
   redirect: string
+  callback: string
 }
 
 export interface IStartLoginOptions {
@@ -79,6 +80,7 @@ export interface IStartLoginOptions {
 export interface ILogoutOptions {
   additionalParams?: Record<string, string>
   callback?: string
+  skipSingleLogout?: boolean
 }
 
 export class AuthManager {
@@ -292,10 +294,7 @@ export class AuthManager {
   async startLogin(redirect: string, options: IStartLoginOptions = {}) {
     const log = logger.extend(`startLogin`)
     log(`[Auth] Starting login`)
-    const permissions = options.permissions ?? [
-      `uperm://{{server}}/**`,
-      `uperm://{{issuer}}/session/claim`
-    ]
+    const permissions = options.permissions ?? [`{{server}}/**`, `{{issuer}}/session/claim`]
     const mappedPermissionScopes = permissions.map((p) => {
       const { path, optional } = typeof p === 'string' ? { path: p } : p
       const schema = optional ? 'uperm+optional' : 'uperm'
@@ -332,7 +331,7 @@ export class AuthManager {
     url.searchParams.set('code_challenge_method', 'S256')
     url.searchParams.set('state', state)
     log(`Redirect URL: ${url.href}`)
-    this.loginState.value = { codeVerifier, state, redirect }
+    this.loginState.value = { codeVerifier, state, redirect, callback }
     return url.href
   }
 
@@ -349,7 +348,7 @@ export class AuthManager {
     data.set('grant_type', 'authorization_code')
     data.set('code', code)
     data.set('client_id', this.uaaaConfig.clientAppId)
-    data.set('redirect_uri', new URL('/auth/callback', location.origin).href)
+    data.set('redirect_uri', loginState.callback)
     data.set('code_verifier', loginState.codeVerifier)
     const resp = await fetch(token_endpoint, {
       method: 'POST',
@@ -376,6 +375,7 @@ export class AuthManager {
       this.securityLevel.value = -1
       this.idToken.value = ''
     })
+    if (options.skipSingleLogout) return
     const form = document.createElement('form')
     form.method = 'POST'
     form.action = end_session_endpoint
